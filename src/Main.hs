@@ -4,15 +4,24 @@ import Data.Monoid
 import Data.List
 import Data.Maybe
 import qualified Data.Map as M
-
+import Data.Function
 import System.Random
 import Control.Monad.State
+import Control.Applicative
 import Data.Tuple
 
 data Move
     = Betray
     | Cooperate
-    deriving (Show, Read)
+    deriving (Show)
+
+charToMove :: Char -> Move
+charToMove 'C' = Cooperate
+charToMove _ = Betray
+
+moveToString :: Move -> String
+moveToString Cooperate = "C"
+moveToString Betray = "D"
 
 instance Random Move where
     -- randomR :: RandomGen g => (a, a) -> g -> (a, g)
@@ -68,37 +77,24 @@ game n (player1, player2) = game' n (player1, player2) [] (s 0, s 0)
 game' :: Int -> (Strategy, Strategy) -> [Round] -> Scores -> State StdGen Scores
 game' 0 (p1, p2) r s = return s
 game' n (p1, p2) r s = do
-    rgen <- get
-    let move1 = move p1 r
-        move2 = move p2 (map swap r)
-        (m1, rgen') = runState move1 rgen
-        (m2, rgen'') = runState move2 rgen'
-        score' = score m1 m2 <> s
-    put rgen''
-    game' (n-1) (p1,p2) ((m1, m2) : r) score'
-
+    m1 <- move p1 r
+    m2 <- move p2 (map swap r)
+    game' (n-1) (p1,p2) ((m1, m2) : r) (score m1 m2 <> s)
 
 pairs :: (Ord a, Eq a) => [a] -> [(a,a)]
 pairs list =
     [ (a,b) | a <- list, b <- list, a /= b, a < b ]
 
 runGame :: Int -> M.Map Strategy Score -> (Strategy, Strategy) -> State StdGen (M.Map Strategy Score)
-runGame n scores (p1,p2) = do
-    rgen <- get
-    let ((p1score,p2score), rgen') = runState (game n (p1,p2)) rgen
-    put rgen'
-    return (M.insertWith (<>) p2 p2score $ M.insertWith (<>) p1 p1score scores)
-
-
-
+runGame n scores (p1,p2) =
+        fmap (\(p1score, p2score) ->
+            M.insertWith (<>) p2 p2score $ M.insertWith (<>) p1 p1score scores)
+            (game n (p1, p2))
 
 championship :: Int -> [Strategy] -> State StdGen (M.Map Strategy Score)
-championship n strategies = do
-    rgen <- get
-    let (results,rgen') = runState (mapM (runGame n initialScore) games) rgen
-        combined = M.unionsWith (<>) results
-    put rgen'
-    return combined
+championship n strategies =
+    fmap (M.unionsWith (<>))
+        (mapM (runGame n initialScore) games)
     where
         games = pairs strategies
         initialScore = M.fromList [(s, Score 0) | s <- strategies]
@@ -113,7 +109,7 @@ betrayF _ = return Betray
 betray :: Strategy
 betray = S ("betray", betrayF)
 
-randomF _ = mapState (\(_, s) -> random s) (return ())
+randomF _ = (StateT (return . random))
 
 randomStrat :: Strategy
 randomStrat = S ("random", randomF)
@@ -167,35 +163,48 @@ testStrat s r = do
 strategies =
     concat
     [
-        strats 10 "spite" spiteF,
-        strats 10 "titfortat" tftF,
-        strats 10 "pavlov" pavlovF,
-        strats 10 "bbc" bbcF,
-        strats 10 "ccb" ccbF,
-        strats 10 "random" randomF,
+        --strats 10 "spite" spiteF,
+        --strats 10 "titfortat" tftF,
+        --strats 10 "pavlov" pavlovF,
+        --strats 10 "bbc" bbcF,
+        --strats 10 "ccb" ccbF,
+        strats 1 "random" randomF,
         strats 10 "mistrust" mistrustF,
         strats 10 "betray" betrayF,
         strats 10 "cooperate" cooperateF
     ]
 
-stratMain :: Strategy -> IO ()
-stratMain s = newStdGen >>= recurse s []
-    where
-        recurse :: Strategy -> [Round] -> StdGen -> IO ()
-        recurse s rs rgen = do
-            let (myMove, rgen') = runState (move s rs) rgen
-            print myMove
-            line <- getLine
-            let opponentMove = read line
-            recurse s ((myMove,opponentMove):rs) rgen'
+--stratMain :: Strategy -> IO ()
+--stratMain s = newStdGen >>= recurse s []
+--    where
+--        recurse :: Strategy -> [Round] -> StdGen -> IO ()
+--        recurse s rs rgen = do
+--            let (myMove, rgen') = runState (move s rs) rgen
+--            print myMove
+--            line <- getLine
+--            --let opponentMove = read line
+--            recurse s ((myMove,opponentMove):rs) rgen'
 
 
+--main = stratMain pavlov
 
+dilemmaMain :: Strategy -> IO ()
+dilemmaMain s = do
+    opponentsline <- getLine
+    localline <- getLine
+    let opp = map charToMove opponentsline
+        local = map charToMove localline
+        rounds = zip local opp
+    gen <- newStdGen
+    let myMove = evalState (move s rounds) gen
+    putStrLn (moveToString myMove)
+
+--main = dilemmaMain pavlov
 
 main :: IO ()
 main = do
     rgen <- newStdGen
     let scores = evalState (championship 1000 strategies) rgen
         scoresl = M.toList scores
-        sorted = sortBy (\(_,v1) (_,v2) -> compare v1 v2) scoresl
+        sorted = sortBy (compare `on` snd) scoresl
     mapM_ print sorted
