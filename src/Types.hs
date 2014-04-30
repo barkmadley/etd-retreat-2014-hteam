@@ -82,3 +82,10 @@ dilemmaMain s = do
 
 tftDefault v ((m,t):rs) = return t
 tftDefault v _ = return v
+
+
+testStrat :: Strategy -> [Round] -> IO ()
+testStrat s r = do
+    rgen <- newStdGen
+    let m = evalState (move s r) rgen
+    print m

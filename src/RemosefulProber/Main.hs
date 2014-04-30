@@ -22,12 +22,6 @@ f _ = return Cooperate
 
 strat = S ("remorsefulprober 0.05", f)
 
-testStrat :: Strategy -> [Round] -> IO ()
-testStrat s r = do
-    rgen <- newStdGen
-    let m = evalState (move s r) rgen
-    print m
-
 --main = testStrat strat [(Cooperate, Cooperate)]
 
 main = dilemmaMain strat
