@@ -45,6 +45,85 @@ build-type:          Simple
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
+executable strat-spite
+  main-is: Spite/Main.hs
+  hs-source-dirs: src
+  build-depends:  base >=4.6 && <4.7,
+                  containers -any,
+                  random -any,
+                  mtl -any
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+executable strat-cooperate
+  main-is: Cooperate/Main.hs
+  hs-source-dirs: src
+  build-depends:  base >=4.6 && <4.7,
+                  containers -any,
+                  random -any,
+                  mtl -any
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+executable strat-tft
+  main-is: Titfortat/Main.hs
+  hs-source-dirs: src
+  build-depends:  base >=4.6 && <4.7,
+                  containers -any,
+                  random -any,
+                  mtl -any
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+executable strat-remorsefulprober
+  main-is: RemosefulProber/Main.hs
+  hs-source-dirs: src
+  build-depends:  base >=4.6 && <4.7,
+                  containers -any,
+                  random -any,
+                  mtl -any
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+executable strat-tf2t
+  main-is: Tit42tats/Main.hs
+  hs-source-dirs: src
+  build-depends:  base >=4.6 && <4.7,
+                  containers -any,
+                  random -any,
+                  mtl -any
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+executable strat-mistrust
+  main-is: Mistrust/Main.hs
+  hs-source-dirs: src
+  build-depends:  base >=4.6 && <4.7,
+                  containers -any,
+                  random -any,
+                  mtl -any
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+executable strat-pavlov
+  main-is: Pavlov/Main.hs
+  hs-source-dirs: src
+  build-depends:  base >=4.6 && <4.7,
+                  containers -any,
+                  random -any,
+                  mtl -any
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+executable strat-random
+  main-is: Random/Main.hs
+  hs-source-dirs: src
+  build-depends:  base >=4.6 && <4.7,
+                  containers -any,
+                  random -any,
+                  mtl -any
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
 
 executable ipd
   -- .hs or .lhs file containing the Main module.

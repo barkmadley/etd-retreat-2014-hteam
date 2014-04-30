@@ -39,6 +39,8 @@ type StratF =
 
 data Strategy = S (String, StratF)
 
+--newtype StrategyT f a = StrategyT ([Round] -> f a)
+
 instance Eq Strategy where
     S (n1, _) == S (n2, _) = n1 == n2
 
