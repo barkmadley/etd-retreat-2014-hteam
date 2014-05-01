@@ -1,6 +1,5 @@
 module Types.Strategies.Free where
 
-import Data.Monoid
 import Control.Monad.Free
 import qualified System.Random as R
 
@@ -9,7 +8,10 @@ import qualified System.Random as R
 data Move
     = Betray
     | Cooperate
-    deriving (Show)
+    deriving (Show, Eq)
+
+flipMove Betray = Cooperate
+flipMove Cooperate = Betray
 
 charToMove :: Char -> Move
 charToMove 'C' = Cooperate
@@ -59,29 +61,74 @@ play m = liftF (Set m ())
 cooperate = play Cooperate
 betray = play Betray
 
+defaultMove = play
+
 -- Strategies
 
 alwaysCooperate :: Strategy ()
 alwaysCooperate = cooperate
 
-titForTat :: Strategy ()
-titForTat = do
-    play Cooperate
+copyOpponent = do
     (_,t) <- history
     play t
+
+titForTat :: Strategy ()
+titForTat = do
+    defaultMove Cooperate
+    copyOpponent
+
+titForTatRand :: Float -> Strategy ()
+titForTatRand threshold = do
+    defaultMove Cooperate
+    (_,t) <- history
+    play t
+    p <- random
+    when (p < threshold) $ do
+        play (flipMove t)
+
+titFor2Tats :: Strategy ()
+titFor2Tats = do
+    defaultMove Cooperate
+    (myLastMove,opponent1) <- history
+    play myLastMove
+    (_,opponent2) <- history
+    when (opponent1 == opponent2) $ do
+        play opponent1
+
+flipper :: Strategy ()
+flipper = do
+    defaultMove Cooperate
+    (myLast,_) <- history
+    play (flipMove myLast)
+
+spite :: Strategy ()
+spite = do
+    defaultMove Cooperate
+    (myLast,oppLast) <- history
+    play myLast
+    when (oppLast == Betray) $ do
+        betray
+
+pavlov :: Strategy ()
+pavlov = do
+    randomStrat 0.5
+    (myLast,oppLast) <- history
+    when (oppLast == Cooperate) $ do
+        play myLast
+    when (oppLast == Betray && myLast == Betray) $ do
+        play Cooperate
 
 mistrust :: Strategy ()
 mistrust = do
-    play Betray
-    (_,t) <- history
-    play t
+    defaultMove Betray
+    copyOpponent
 
-randomStrat :: Strategy ()
-randomStrat = do
-    play Cooperate
+randomStrat :: Float -> Strategy ()
+randomStrat threshold = do
+    defaultMove Cooperate
     p <- random
     when (p < 0.5) $ do
-        play Betray
+        betray
 
 -- Util
 
