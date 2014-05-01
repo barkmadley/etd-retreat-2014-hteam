@@ -10,6 +10,8 @@ import Control.Monad.State
 import Control.Applicative
 import Data.Tuple
 
+import qualified Types.Strategies.Free as F
+
 data Move
     = Betray
     | Cooperate
