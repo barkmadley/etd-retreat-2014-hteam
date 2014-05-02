@@ -12,7 +12,7 @@ choose xs d = (choose' xs d) `fmap` (state (randomR (0.0,1.0)))
         choose' [] d p = d
         choose' ((pa,a):ps) d p
             | p < pa = a
-            | otherwise = choose' (p - pa) ps d
+            | otherwise = choose' ps d (p - pa)
 
 f ((_,Betray):(Betray,_):(_,Cooperate):rs) = return Cooperate
 f ((_,Betray):rs) = return Betray
