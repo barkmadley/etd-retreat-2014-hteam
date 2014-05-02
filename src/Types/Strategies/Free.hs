@@ -58,77 +58,109 @@ play m = liftF (Set m ())
 
 -- Derived Combinators
 
+-- -- Deciding combinators
 cooperate = play Cooperate
 betray = play Betray
-
 defaultMove = play
+playFlipped move = play (flipMove move)
+
+-- -- History combinators
+getMyMove = history >>= return . fst
+getTheirMove = history >>= return . snd
+
+-- -- Repetition
+repeatMyLastMove = do
+    (myLast, oppLast) <- history
+    play myLast
+    return oppLast
+
+repeatTheirLastMove = do
+    (myLast, oppLast) <- history
+    play oppLast
+    return oppLast
+
+-- -- Opposite day
+flipAMove get = do
+    t <- get
+    playFlipped t
+    return t
+
+flipMyLastMove = flipAMove getMyMove
+flipTheirLastMove = flipAMove getTheirMove
+
+-- -- Conditional combinators
+whenRand threshold a = do
+    p <- random
+    when (p < threshold) $ do
+        a
+
+whenBetrayedBy m a = when (m == Betray) a
+whenCooperatedBy m a = when (m == Cooperate) a
 
 -- Strategies
 
 alwaysCooperate :: Strategy ()
 alwaysCooperate = cooperate
 
-copyOpponent = do
-    (_,t) <- history
-    play t
-
-titForTat :: Strategy ()
+titForTat :: Strategy Move
 titForTat = do
     defaultMove Cooperate
-    copyOpponent
+    repeatTheirLastMove
 
 titForTatRand :: Float -> Strategy ()
 titForTatRand threshold = do
-    defaultMove Cooperate
-    (_,t) <- history
-    play t
-    p <- random
-    when (p < threshold) $ do
-        play (flipMove t)
+    theirLast <- titForTat
+    whenRand threshold $ playFlipped theirLast
 
 titFor2Tats :: Strategy ()
 titFor2Tats = do
     defaultMove Cooperate
-    (myLastMove,opponent1) <- history
-    play myLastMove
-    (_,opponent2) <- history
-    when (opponent1 == opponent2) $ do
-        play opponent1
+    theirLast <- repeatMyLastMove
+    theirLastLast <- getTheirMove
+    when (theirLast == theirLastLast) $ do
+        play theirLast
 
-flipper :: Strategy ()
+flipper :: Strategy Move
 flipper = do
     defaultMove Cooperate
-    (myLast,_) <- history
-    play (flipMove myLast)
+    flipMyLastMove
 
 spite :: Strategy ()
 spite = do
     defaultMove Cooperate
-    (myLast,oppLast) <- history
-    play myLast
-    when (oppLast == Betray) $ do
-        betray
+    theirLast <- repeatMyLastMove
+    whenBetrayedBy theirLast betray
 
 pavlov :: Strategy ()
 pavlov = do
     randomStrat 0.5
-    (myLast,oppLast) <- history
-    when (oppLast == Cooperate) $ do
-        play myLast
-    when (oppLast == Betray && myLast == Betray) $ do
-        play Cooperate
+    (myLast,theirLast) <- history
+    whenCooperatedBy theirLast (play myLast)
+    whenBetrayedBy theirLast $ do
+        whenBetrayedBy myLast cooperate
 
-mistrust :: Strategy ()
+mistrust :: Strategy Move
 mistrust = do
     defaultMove Betray
-    copyOpponent
+    repeatTheirLastMove
 
 randomStrat :: Float -> Strategy ()
 randomStrat threshold = do
     defaultMove Cooperate
-    p <- random
-    when (p < threshold) $ do
-        betray
+    whenRand threshold betray
+
+remorsefulProber :: Float -> Strategy ()
+remorsefulProber threshold = do
+  defaultMove Cooperate
+  theirLast <- getTheirMove
+  whenBetrayedBy theirLast betray
+  whenCooperatedBy theirLast (randomStrat threshold)
+  myLastLast <- getMyMove
+  theirLastLastLast <- getTheirMove
+  whenBetrayedBy theirLast $ do
+    whenBetrayedBy myLastLast $ do
+        whenCooperatedBy theirLastLastLast cooperate
+
 
 -- Util
 
@@ -140,8 +172,8 @@ pchoose ((pa,a):ps) d p
 
 -- Evaluattion
 
-playStratAction :: Move -> [Round] -> Int -> R.StdGen -> Strategy () -> IO ()
-playStratAction d rs n s (Pure ()) = putStrLn $ moveToString d
+playStratAction :: Move -> [Round] -> Int -> R.StdGen -> Strategy a -> IO ()
+playStratAction d rs n s (Pure _) = putStrLn $ moveToString d
 playStratAction d rs n s (Impure (Set m next)) = playStratAction m rs n s next
 playStratAction d rs n s (Impure (Rounds f)) = playStratAction d rs n s (f n)
 playStratAction d [] n s (Impure (History f)) = playStratAction d [] n s (Pure ())
@@ -150,7 +182,7 @@ playStratAction d rs n s (Impure (Random f)) = do
     let (p, s') = R.randomR (0.0, 1.0) s
     playStratAction d rs n s' (f p)
 
-playStrategy :: Strategy () -> IO ()
+playStrategy :: Strategy a -> IO ()
 playStrategy s = do
     rgen <- R.newStdGen
     opponentsline <- getLine
