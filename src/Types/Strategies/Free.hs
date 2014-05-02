@@ -127,7 +127,7 @@ randomStrat :: Float -> Strategy ()
 randomStrat threshold = do
     defaultMove Cooperate
     p <- random
-    when (p < 0.5) $ do
+    when (p < threshold) $ do
         betray
 
 -- Util
