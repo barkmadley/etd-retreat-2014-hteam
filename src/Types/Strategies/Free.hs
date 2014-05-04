@@ -1,6 +1,11 @@
 module Types.Strategies.Free where
 
+import Data.Monoid
+import Data.Maybe
+import Control.Monad.Trans.Maybe
 import Control.Monad.Free
+import Control.Monad.RWS
+import Control.Applicative
 import qualified System.Random as R
 
 -- Types
@@ -172,24 +177,97 @@ pchoose ((pa,a):ps) d p
 
 -- Evaluattion
 
-playStratAction :: Move -> [Round] -> Int -> R.StdGen -> Strategy a -> IO ()
-playStratAction d rs n s (Pure _) = putStrLn $ moveToString d
-playStratAction d rs n s (Impure (Set m next)) = playStratAction m rs n s next
-playStratAction d rs n s (Impure (Rounds f)) = playStratAction d rs n s (f n)
-playStratAction d [] n s (Impure (History f)) = playStratAction d [] n s (Pure ())
-playStratAction d (r:rs) n s (Impure (History f)) = playStratAction d rs n s (f r)
-playStratAction d rs n s (Impure (Random f)) = do
-    let (p, s') = R.randomR (0.0, 1.0) s
-    playStratAction d rs n s' (f p)
+-- -- A monadic representation of the full set of information required to run a strategy action
 
-playStrategy :: Strategy a -> IO ()
-playStrategy s = do
+runStratAction :: StrategyAction a -> MaybeT (RWS Int (Last Move) ([Round], R.StdGen)) a
+runStratAction (Set move next) = tell (Last (Just move)) >> return next
+runStratAction (Rounds f) = ask >>= return . f
+runStratAction (History f) = do
+    (rounds,gen) <- get
+    case rounds of
+        [] -> mzero
+        (r:rs) -> do
+            put (rs,gen)
+            return $ f r
+runStratAction (Random f) = do
+    (rounds,gen) <- get
+    let (p, gen') = R.randomR (0.0, 1.0) gen
+    put (rounds, gen')
+    return $ f p
+
+-- -- run a strategy action fixing the random function to always return a certain probability
+
+runDeterminisicStratAction :: Float -> StrategyAction a -> MaybeT (RWS Int (Last Move) [Round]) a
+runDeterminisicStratAction _ (Set move next) = tell (Last (Just move)) >> return next
+runDeterminisicStratAction _ (Rounds f) = ask >>= return . f
+runDeterminisicStratAction p (Random f) = return $ f p
+runDeterminisicStratAction _ (History f) = do
+    rounds <- get
+    case rounds of
+        [] -> mzero
+        (r:rs) -> do
+            put rs
+            return $ f r
+
+-- -- run a strategy but ignore any requests for history
+
+runFirstStratAction :: StrategyAction a -> MaybeT (RWS Int (Last Move) R.StdGen) a
+runFirstStratAction (Set move next) = tell (Last (Just move)) >> return next
+runFirstStratAction (Rounds f) = ask >>= return . f
+runFirstStratAction (History f) = mzero
+runFirstStratAction (Random f) = state (R.randomR (0.0, 1.0)) >>= return . f
+
+-- -- a fully implemented recursive interpreter
+
+playStrategy :: Move -> [Round] -> Int -> R.StdGen -> Strategy a -> IO ()
+playStrategy d rs n s (Pure _) = putStrLn $ moveToString d
+playStrategy d rs n s (Impure (Set m next)) = playStrategy m rs n s next
+playStrategy d rs n s (Impure (Rounds f)) = playStrategy d rs n s (f n)
+playStrategy d [] n s (Impure (History f)) = playStrategy d [] n s (Pure ())
+playStrategy d (r:rs) n s (Impure (History f)) = playStrategy d rs n s (f r)
+playStrategy d rs n s (Impure (Random f)) = do
+    let (p, s') = R.randomR (0.0, 1.0) s
+    playStrategy d rs n s' (f p)
+
+-- -- run a strategy using the recursive interpreter above
+
+runStrategyIO :: Strategy a -> IO ()
+runStrategyIO s = do
     rgen <- R.newStdGen
     opponentsline <- getLine
     localline <- getLine
     let opp = map charToMove opponentsline
         local = map charToMove localline
         rounds = zip local opp
-    playStratAction Cooperate rounds 1000 rgen s
+    playStrategy Cooperate rounds 1000 rgen s
 
+-- -- run a strategy using a free combinator and the appropriate runRWS and runMaybeT functions
 
+runStrategy :: Strategy a -> IO ()
+runStrategy s = do
+    rgen <- R.newStdGen
+    opponentsline <- getLine
+    localline <- getLine
+    let opp = map charToMove opponentsline
+        local = map charToMove localline
+        rounds = zip local opp
+        interpreter = induce runStratAction s
+        state = (rounds,rgen)
+        (result,state',lastMove) = runRWS (runMaybeT interpreter) 1000 state
+        play = fromMaybe Cooperate (getLast lastMove)
+    putStrLn $ moveToString play
+
+-- -- run a strategy where the random probability is always set to 1.0
+
+runStrategyP1 :: Strategy a => IO ()
+runStrategyP1 s = do
+    opponentsline <- getLine
+    localline <- getLine
+    let opp = map charToMove opponentsline
+        local = map charToMove localline
+        rounds = zip local opp
+        interpreter = induce (runDeterminisicStratAction 1.0) s
+        state = rounds
+        (result,state',lastMove) = runRWS (runMaybeT interpreter) 1000 state
+        play = fromMaybe Cooperate (getLast lastMove)
+    putStrLn $ moveToString play

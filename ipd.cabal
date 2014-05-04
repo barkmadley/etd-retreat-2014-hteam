@@ -60,7 +60,8 @@ executable ipd
                        containers -any,
                        random -any,
                        mtl -any,
-                       control-monad-free -any
+                       control-monad-free -any,
+                       transformers -any
   
   -- Directories containing source files.
   hs-source-dirs:      src
