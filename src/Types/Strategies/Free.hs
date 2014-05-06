@@ -259,7 +259,7 @@ runStrategy s = do
 
 -- -- run a strategy where the random probability is always set to 1.0
 
-runStrategyP1 :: Strategy a => IO ()
+runStrategyP1 :: Strategy a -> IO ()
 runStrategyP1 s = do
     opponentsline <- getLine
     localline <- getLine
